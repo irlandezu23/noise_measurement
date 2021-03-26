@@ -1,2 +1,3 @@
-# noise_measurement
- Waspmote Plug & Sense and LoRa connectivity
+# Noise Measurement
+
+	This project is based on Waspmote Plug & Sense platform and LoRa connectivity
