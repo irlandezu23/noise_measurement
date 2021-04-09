@@ -2,11 +2,11 @@
 #include <WaspSensorCities_PRO.h>
 #include <WaspLoRaWAN.h>        
 
-#define DEVICE_EUI                          "BE7A00000000303F"
-#define DEVICE_ADDR                         "31EC34E0"
+#define DEVICE_EUI                          "203dca2739e30a60"
+#define DEVICE_ADDR                         "01984b32"
 #define APP_EUI                             "BE7A000000002547"
-#define NWK_SESSION_KEY                     "0A36E5ED7319D09BB6D47A1A078C10EE"
-#define APP_SESSION_KEY                     "7152F3C5123B1EF85F86117C5082C523"
+#define NWK_SESSION_KEY                     "db42f75470f853c119fa2eeefb3fbc2c"
+#define APP_SESSION_KEY                     "bf8e5785d2c848a35f1b240512554ca8"
 
 #define DO_NOTHING                          ((uint8_t)0)
 #define GET_NOISE                           ((uint8_t)1)
@@ -27,9 +27,9 @@
 #define STATUS_OK                           ((uint8_t)0)
 #define STATUS_ERROR                        ((uint8_t)-1)
 
-#define UPDATE_OK                           "0"
-#define UPDATE_BAD_CMD                      "1"
-#define UPDATE_BAD_PARAMETER                "2"
+#define UPDATE_OK                           ((uint8_t)0)
+#define UPDATE_BAD_CMD                      ((uint8_t)1)
+#define UPDATE_BAD_PARAMETER                ((uint8_t)2)
 
 #define MIN_MEASUREMENTS_NUMBER             ((uint8_t)5)
 #define MAX_BUFFER_LENGTH                   ((uint16_t)256)
@@ -72,6 +72,7 @@ static inline void sleep_mode_on(void);
 static inline void send_data(void);
 static inline void build_frame(void);
 static inline void get_update(void);
+static inline void send_response(uint8_t response);
 static inline uint8_t check_measurements_number(uint16_t get_counter, uint16_t send_counter);
 static inline void reset_noise_buffer(void);
 
@@ -240,7 +241,7 @@ static inline void send_data(void)
         status |= LoRaWAN.ON(LORA_SOCKET);
         status |= LoRaWAN.setRX1Delay(LORA_RX1_DELAY);
         status |= LoRaWAN.joinABP();
-        status |= LoRaWAN.sendUnconfirmed( LORA_PORT, lpp.buffer, lpp.cursor);
+        status |= LoRaWAN.sendUnconfirmed(LORA_PORT, lpp.buffer, lpp.cursor);
         if(STATUS_OK == status)
         {
             get_update();
@@ -277,11 +278,11 @@ static inline void get_update(void)
                 if(strlen(received_data) == PING_CMD_LENGTH)
                 {
                     USB.println(F("Ping received from the LoRa server..."));
-                    LoRaWAN.sendUnconfirmed(LORA_PORT, UPDATE_OK);
+                    send_response(UPDATE_OK);
                     break;
                 }
                 USB.println(F("Bad parameter received for ping..."));
-                LoRaWAN.sendUnconfirmed(LORA_PORT, UPDATE_BAD_PARAMETER);
+                send_response(UPDATE_BAD_PARAMETER);
                 break;
             }
             case SEND_DATA_COUNTER_CMD:
@@ -294,12 +295,12 @@ static inline void get_update(void)
                         send_data_max_counter = aux;
                         USB.print(F("Sending data period (in seconds) was updated to: "));
                         USB.println(send_data_max_counter);
-                        LoRaWAN.sendUnconfirmed(LORA_PORT, UPDATE_OK);
+                        send_response(UPDATE_OK);
                         break;
                     }
                 }
                 USB.println(F("Bad parameter received for sending data period update..."));
-                LoRaWAN.sendUnconfirmed(LORA_PORT, UPDATE_BAD_PARAMETER);
+                send_response(UPDATE_BAD_PARAMETER);
                 break;
             }
             case GET_NOISE_COUNTER_CMD:
@@ -312,12 +313,12 @@ static inline void get_update(void)
                         get_noise_max_counter = aux;
                         USB.print(F("Getting noise period (in seconds) was updated to: "));
                         USB.println(get_noise_max_counter);
-                        LoRaWAN.sendUnconfirmed(LORA_PORT, UPDATE_OK);
+                        send_response(UPDATE_OK);
                         break;                        
                     }
                 }
                 USB.println(F("Bad parameter received for getting noise period update..."));
-                LoRaWAN.sendUnconfirmed(LORA_PORT, UPDATE_BAD_PARAMETER);
+                send_response(UPDATE_BAD_PARAMETER);
                 break;
             }
             case SET_TIME_CMD:
@@ -339,12 +340,12 @@ static inline void get_update(void)
                         app_time = aux;
                         USB.print(F("System time updated to: "));
                         USB.println(app_time);
-                        LoRaWAN.sendUnconfirmed(LORA_PORT, UPDATE_OK);
+                        send_response(UPDATE_OK);
                         break;
                     }
                 }
                 USB.println(F("Bad parameter received for system time update..."));
-                LoRaWAN.sendUnconfirmed(LORA_PORT, UPDATE_BAD_PARAMETER);
+                send_response(UPDATE_BAD_PARAMETER);
                 break;
             }
             case REBOOT_CMD:
@@ -353,22 +354,29 @@ static inline void get_update(void)
                 {
                     USB.println(F("System reboot command received..."));
                     USB.println(F("Rebooting the system..."));
-                    LoRaWAN.sendUnconfirmed(LORA_PORT, UPDATE_OK);
+                    send_response(UPDATE_OK);
                     PWR.reboot();
                     break;
                 }
                 USB.println(F("Bad parameter received for system reboot..."));
-                LoRaWAN.sendUnconfirmed(LORA_PORT, UPDATE_BAD_PARAMETER);
+                send_response(UPDATE_BAD_PARAMETER);
                 break;
             }
             default:
             {
                 USB.println(F("Unknown command received..."));
-                LoRaWAN.sendUnconfirmed(LORA_PORT, UPDATE_BAD_CMD);
+                send_response(UPDATE_BAD_CMD);
                 break;
             }
         }
     }
+}
+
+static inline void send_response(uint8_t response)
+{
+    cayenne_lpp_reset(&lpp);
+    cayenne_lpp_add_digital_input(&lpp, 1, response);
+    LoRaWAN.sendUnconfirmed(LORA_PORT, lpp.buffer, lpp.cursor);
 }
 
 static inline uint8_t check_measurements_number(uint16_t get_counter, uint16_t send_counter)
